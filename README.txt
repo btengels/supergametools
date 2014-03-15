@@ -1,6 +1,6 @@
 
 ======================================================================
-Supergametools - a python toolkit for repeated games
+Supergametools - a python toolkit for repeated economic games
 ======================================================================
 - Author: Benjamin Tengelsen <btengels@cmu.edu>
 - Website: https://sites.google.com/site/btengelsenresearch/python
