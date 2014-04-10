@@ -660,10 +660,10 @@ def innerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
     solvers.options['show_progress'] = False
 
     if rank == 0 and display is True:
-        print('Outer Hyperplane Approximation')
+        print('Inner Hyperplane Approximation')
 
     #-------------------------------------------------------------------------------
-    # Begin algorithm for outer hyperplane approximation
+    # Begin algorithm for inner hyperplane approximation
     #-------------------------------------------------------------------------------
     # if rank <= n:
     while tolZ > tol and iter < MaxIter:
