@@ -9,7 +9,7 @@ setup(
     author='Benjamin Tengelsen',
     author_email='btengels@cmu.edu',
     packages=['supergametools'],
-    url='https://bitbucket.org/ben_tengelsen/supergametools',
+    url='https://github.com/btengels/supergametools'
     description='Python library for finding equilibria of repeated games',
-    long_description=open('README.txt').read()
+    long_description=open('README.md').read()
 )

@@ -15,9 +15,183 @@ import numpy as np
 import cvxopt as cvx
 import matplotlib.pyplot as plt
 from cvxopt import solvers as solvers
+from itertools import product
+from numpy.linalg import norm
 
 
-__all__ = ['outerbound', 'outerbound_par', 'innerbound', 'innerbound_par', 'hausdorffnorm']     # this list gives what is imported with "from supergametools import *"
+import mpl_toolkits.mplot3d.axes3d as plot3
+from matplotlib.ticker import LinearLocator, FormatStrFormatter
+from matplotlib.patches import FancyArrowPatch
+from mpl_toolkits.mplot3d import proj3d
+
+
+
+__all__ = ['outerbound', 'outerbound_par', 'innerbound', 'innerbound_par', 'hausdorffnorm', 'make_2d_plots', 'make_3d_plots']     # this list gives what is imported with "from supergametools import *"
+
+
+def make_2d_plots(points_list, line_type, filename=None, save=True):
+    '''
+    '''
+    fig = plt.figure()
+    for i, point_array in enumerate(points_list):
+        line = line_type[i]
+        vertex_plot = np.vstack((point_array, point_array[0, :]))
+
+        plt.plot(vertex_plot[:, 0], vertex_plot[:, 1], line)
+        plt.xlabel('Payoff: Player 1')
+        plt.ylabel('Payoff: Player 2')
+
+    if save==True:
+        plt.savefig(filename, pad_inches = .5, bbox_inches = 'tight')
+    else:
+        plt.show()
+
+
+def make_3d_plots( points_array , filename=None, save=True):
+    '''
+    '''
+    from scipy import spatial
+    fig = plt.figure()
+    plt.margins(1,1)
+
+    ax = plot3.Axes3D(fig)
+    # ax = fig.add_subplot(len(states_observed), 1, state_observed_index, projection='3d')
+    # ax.set_title(str(states[state_index]))
+    ax.set_xlabel(r'$V_1$', family='Times New Roman', style='normal', fontsize=16)
+    ax.set_ylabel(r'$V_2$', family='Times New Roman', style='normal', fontsize=16)
+    ax.set_zlabel(r'$V_3$', family='Times New Roman', style='normal', fontsize=16)
+
+    # set background color
+    ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+
+    # change "camera angle" for 3d plot
+    ax.view_init(50, -50)
+
+    # approximate hull with tight points_array of points
+    hull = spatial.Delaunay(points_array)
+
+    xi = np.linspace(min(points_array[:,0]), max(points_array[:,0]), num=25)
+    yi = np.linspace(min(points_array[:,1]), max(points_array[:,1]), num=25)
+    zi = np.linspace(min(points_array[:,2]), max(points_array[:,2]), num=25)
+
+    grid_points = np.array([(x, y, z) for x in xi for y in yi for z in zi])
+    grid_inhull = grid_points[in_hull(grid_points, hull)]
+
+
+    # slice grid and plot contour hulls of each slice
+    for x_fixed in xi:
+        tempindex = grid_inhull[:,0] == x_fixed
+        temppoints = grid_inhull[tempindex]
+
+
+        if len(temppoints)>0:
+            try:
+                hull = spatial.ConvexHull(temppoints[:,1:3])
+                for simplex in hull.simplices:
+                    x = x_fixed * np.ones(hull.points[simplex, 0].shape)
+                    z_color = hull.points[simplex, 1][1]/max(zi)
+                    ax.plot(x, hull.points[simplex, 0], hull.points[simplex, 1], color = (0.0, z_color, z_color, z_color))
+
+            except:
+                ax.plot(temppoints[:,0],temppoints[:,1],temppoints[:,2], 'b.')
+
+
+    for y_fixed in yi:
+        tempindex = grid_inhull[:,1] == y_fixed
+        temppoints = grid_inhull[tempindex]
+
+        if len(temppoints)>0:
+            try:
+                hull = spatial.ConvexHull(temppoints[:,(0, 2)])
+                for simplex in hull.simplices:
+                    y = y_fixed * np.ones(hull.points[simplex, 0].shape)
+                    z_color = hull.points[simplex, 1][1]/max(zi)
+                    ax.plot(hull.points[simplex, 0], y,  hull.points[simplex, 1], color = (0.0, z_color, z_color, z_color))
+
+            except:
+                ax.plot(temppoints[:,0],temppoints[:,1],temppoints[:,2], 'b.')
+
+    if save==True:
+        plt.savefig(filename, pad_inches = .5, bbox_inches = 'tight')
+    else:
+        plt.show()
+
+
+
+
+def _make_circle(n_grad, cen, rad):
+    '''
+    '''
+    incr = 360.0/n_grad
+    cum = 0
+    H = []
+    Z = []
+    while cum < 360:
+        x = np.cos(cum*np.pi/180)
+        y = np.sin(cum*np.pi/180)
+        H.append((x, y))
+        Z.append((cen[0, 0]+rad*x, cen[0, 1] + rad*y))
+        cum += incr
+
+    return np.array(H), np.array(Z)
+
+
+def _make_sphere(cen, rad, n_points, n_dim ):
+    '''
+    This function coveres a sphere of dimension n_dim
+    with a given number of points.
+    INPUT:  n_points - number of covering points
+            n_dim - dimension of sphere
+            rad - radius of sphere
+    OUTPUT: x - covering points
+    '''
+
+    # randomly sample points and normalize
+    H = np.random.randn( n_points/2, n_dim )
+    H /=  np.tile(norm(H, axis=1), (n_dim,1)).T
+
+    # put all points on half of sphere
+    H[:,0]  = np.abs(H[:,0])
+
+    # copy points to cover whole sphere and scale by given radius
+    H = _spread_points(H, n_dim)
+    H = np.vstack((H,-H))
+    H = _spread_points(H, n_dim)
+
+    Z = H*rad + cen
+
+    return H, Z
+
+
+def _spread_points(x, n_dim):
+    '''
+    This point takes a set of covering points for a sphere
+    and determines which points are too close. If two points
+    are too close, one of them is moved at random.
+    INPUT:  x - covering points
+            n_dim - dimension of sphere
+
+    OUTPUT: x - covering points
+    '''
+    for i in range( len(x) ):
+        for j in range( i+1,len(x) ):
+
+            # if points are "too close", resample
+            if n_dim ==2:
+                dist = .75*np.pi/len(x)
+            else:
+                dist = 2.0*np.pi/len(x) # TODO: fix this
+
+            if norm( x[i,:] - x[j,:] ) <  dist: #todo
+                x_temp = np.random.randn(1, n_dim)
+                x_temp[0,0] = abs(x_temp[0,0])
+                x[j,:] = x_temp/norm(x_temp)
+
+                _spread_points(x, n_dim)
+
+    return x
 
 
 def _cylinder(r, n):
@@ -139,7 +313,23 @@ def _seg_intersect(a1, a2, b1, b2):
     return (num / denom)*db + b1
 
 
-def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIter=200, display=True, Housdorff=False):
+def in_hull(p, hull):
+    """
+    Test if points in `p` are in `hull`
+
+    `p` should be a `NxK` coordinates of `N` points in `K` dimension
+    `hull` is either a scipy.spatial.Delaunay object or the `MxK` array of the
+    coordinates of `M` points in `K`dimension for which a Delaunay triangulation
+    will be computed
+    """
+    from scipy.spatial import Delaunay
+    if not isinstance(hull,Delaunay):
+        hull = Delaunay(hull)
+
+    return hull.find_simplex(p)>=0
+
+
+def innerbound(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=200, display=True, Housdorff=False):
     '''
     This method computes the innerbound approximation of Judd, Yeltekin, Cronklin (2003)
     for 2 agents.
@@ -150,7 +340,6 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
     rad:        radius for initial guess, a circle. float.
     n_grad:     number of search gradients. int.
     delta:      discount factor. float.
-    plot:       True will generate plots. boolean.
     tol:        Minimum tolerable convergence error. float.
     MaxIter:    Maximum number of iterations allowed. int.
     display:    Option to display output during iterations. boolean.
@@ -167,9 +356,13 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
     #---------------------------------------------------------------------------
     # check inputs for correctness
     #---------------------------------------------------------------------------
-    p1_x, p1_y = p1.shape
-    if p1_x != p1_y or p1.shape != p2.shape:
-        raise Exception("payoff matrices must be square and of the same size")
+    Payoff_shape = P[0].shape
+    if sum([Payoff_shape==p.shape for p in P])!=len(P):
+        raise Exception("payoff matrices must all be of the same size")
+
+    elif sum(Payoff_shape[0] == p for p in Payoff_shape) !=len(Payoff_shape):
+        raise Exception("payoff matrices must all be square")
+
     if n_grad < 2:
         raise Exception("insufficient number of search gradients")
 
@@ -177,27 +370,23 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
     # parameters
     #---------------------------------------------------------------------------
     del1 = 1-delta
-    x, y = p1.shape
-    p1max = np.reshape(np.tile(np.max(p1, 0), (max(x, y), 1)), (x*y, 1))
-    p2max = np.reshape(np.tile(np.max(p2, 1), (max(x, y), 1)).T, (1, x*y))
-    stagepay = np.hstack((np.reshape(p1, (1, -1)).T, np.reshape(p2, (1, -1)).T))
-    BR = np.hstack((np.atleast_2d(p1max), np.atleast_2d(p2max).T))
+    n_dim = len(P)
+
+    Pmax = [tuple(np.max(p,i).flatten()) for i, p in enumerate(P)]
+    stagepay = np.vstack( (p.flatten() for p in P ) ).T
+    BR = np.vstack( (p for p in product(*Pmax)) )[:,range(len(P)-1,-1,-1)]
 
     #---------------------------------------------------------------------------
     # gradients and tangency points
     #---------------------------------------------------------------------------
-    incr = 360.0/n_grad
-    cum = 0
-    H = []
-    Z = []
-    while cum < 360:
-        x = np.cos(cum * np.pi/180)
-        y = np.sin(cum * np.pi/180)
-        H.append((x, y))
-        Z.append((cen[0, 0]+rad*x, cen[0, 1] + rad*y))
-        cum += incr
+    if n_dim == 2:
+        H, Z = _make_circle(n_grad, cen, rad)
+        print H
+        # H, Z = _make_sphere(cen, rad, n_grad, n_dim)
+    else:
+        H, Z = _make_sphere(cen, rad, n_grad, n_dim)
 
-    C = np.atleast_2d(np.sum(np.array(Z)*np.array(H), axis=1))
+    C = np.atleast_2d(np.sum(Z * H , axis=1))
     Z = np.array(Z)
     L = len(H)
     A = len(stagepay)
@@ -210,13 +399,7 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
     #-------------------------------------------------------------------------------
     # Use subgradient same as search directions
     #-------------------------------------------------------------------------------
-    [x, y, z] = _cylinder(rad, 200)
 
-    if plot is True:
-        # plot main circle and initial search points
-        plt.figure()
-        plt.plot(x[0, :] + cen[0, 0], y[0, :] + cen[0, 1])
-        plt.plot(Z[:, 0], Z[:, 1], 'rx')
 
     #---------------------------------------------------------------------------
     # Begin optimization portion of program
@@ -224,10 +407,10 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
     #---------------------------------------------------------------------------
     # iterative parameteres
     #---------------------------------------------------------------------------
-    wmin = np.ones((2, 1))*-10
+    wmin = np.ones((n_dim, 1))*-10
     iter = 0                            # Current number of iterations
     tolZ = 1                            # Initialized error between Z and Z'
-    Zold = np.zeros((len(Z), 2))        # Initialized Z array
+    Zold = np.zeros((len(Z), n_dim))        # Initialized Z array
 
     solvers.options['show_progress'] = False
 
@@ -241,7 +424,7 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
 
         # Construct iteration
         Cla = np.zeros((L, A))          # The set of equilibrium payoffs
-        Wla = np.zeros((A, 2, L))       # The set of equilibrium arguments
+        Wla = np.zeros((A, n_dim, L))       # The set of equilibrium arguments
 
         # loop through L search gradiants and A possible actions
         for l in range(L):
@@ -255,7 +438,7 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
 
                 b = cvx.matrix(np.vstack((delta*C+del1 * np.dot(G, pay.T), -del1 * np.atleast_2d(BR[a, :]).T - delta * wmin)))
 
-                T = solvers.lp(-H[l, :].T, cvx.matrix(np.vstack((G, -np.eye(2)))), b)
+                T = solvers.lp(-H[l, :].T, cvx.matrix(np.vstack((G, -np.eye(n_dim)))), b)
 
                 if T['status'] == 'optimal':
                     Wla[a, :, l] = np.array(T['x'])[:, 0]
@@ -269,8 +452,9 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
         #       a_* = argmax{Cla}                 --- element of I
         #       z = del1*payoff(a_*) + del*Wla_*  --- element of C
         #----------------------------------------------------------------
+        
         I = np.atleast_2d(np.argmax(Cla, axis=1)).T
-        C = np.atleast_2d(np.max(Cla, axis=1)).T
+        C = np.atleast_2d(np.max(Cla, axis=1)).T; print C
 
         #----------------------------------------------------------------
         # Step 2:
@@ -282,11 +466,6 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
 
         wmin = np.atleast_2d(np.min(Z, axis=0)).T
 
-        #----------------------------------------------------------------
-        # Add points of Z to plot
-        #----------------------------------------------------------------
-        if plot is True:
-            plt.plot(Z[:, 0], Z[:, 1], 'o')
 
         #----------------------------------------------------------------
         # Measure convergence
@@ -313,15 +492,6 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
         iter += 1
 
     #-------------------------------------------------------------------------------
-    # Find convex hull of most recent Z array and plot
-    #-------------------------------------------------------------------------------
-    if plot is True:
-        Zplot = np.vstack((Z, Z[0,:]))
-        plt.plot(Zplot[:, 0], Zplot[:, 1], 'r-')
-        plt.xlabel('Payoff: Player 1')
-        plt.ylabel('Payoff: Player 2')
-
-    #-------------------------------------------------------------------------------
     # Plot final results and display
     #-------------------------------------------------------------------------------
     if iter < MaxIter and display is True:
@@ -331,14 +501,10 @@ def innerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
         elapsed_time = time.time() - start_time
         print('Elapsed time is %f seconds' % (elapsed_time))
 
-    #display plot
-    if plot is True:
-        plt.show()
-
-    return Z
+    return Zold, H
 
 
-def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIter=200, display=True, Housedorff=False):
+def outerbound(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=100, display=True, Housedorff=False):
     '''
     This method computes the outerbound approximation of Judd, Yeltekin, Cronklin (2003)
     for 2 agents.
@@ -349,7 +515,6 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
     rad:        radius for initial guess, a circle. float.
     n_grad:     number of search gradients. int.
     delta:      discount factor. float.
-    plot:       True will generate plots. boolean.
     tol:        Minimum tolerable convergence error. float.
     MaxIter:    Maximum number of iterations allowed. int.
     display:    Option to display output during iterations. boolean.
@@ -366,9 +531,13 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
     #---------------------------------------------------------------------------
     # check inputs for correctness
     #---------------------------------------------------------------------------
-    p1_x, p1_y = p1.shape
-    if p1_x != p1_y or p1.shape != p2.shape:
-        raise Exception("payoff matrices must be square and of the same size")
+    Payoff_shape = P[0].shape
+    if sum([Payoff_shape==p.shape for p in P])!=len(P):
+        raise Exception("payoff matrices must all be of the same size")
+
+    elif sum(Payoff_shape[0] == p for p in Payoff_shape) !=len(Payoff_shape):
+        raise Exception("payoff matrices must all be square")
+
     if n_grad < 2:
         raise Exception("insufficient number of search gradients")
 
@@ -376,27 +545,23 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
     # parameters
     #---------------------------------------------------------------------------
     del1 = 1-delta
-    x, y = p1.shape
-    p1max = np.reshape(np.tile(np.max(p1, 0), (max(x, y), 1)), (x*y, 1))
-    p2max = np.reshape(np.tile(np.max(p2, 1), (max(x, y), 1)).T, (1, x*y))
-    stagepay = np.hstack((np.reshape(p1, (1, -1)).T, np.reshape(p2, (1, -1)).T))
-    BR = np.hstack((np.atleast_2d(p1max), np.atleast_2d(p2max).T))
+    n_dim = len(P)
+
+    Pmax = [tuple(np.max(p,i).flatten()) for i, p in enumerate(P)]
+    stagepay = np.vstack( (p.flatten() for p in P ) ).T
+    BR = np.vstack( (p for p in product(*Pmax)) )[:,range(len(P)-1,-1,-1)]
 
     #---------------------------------------------------------------------------
     # gradients and tangency points
     #---------------------------------------------------------------------------
-    incr = 360.0/n_grad
-    cum = 0
-    H = []
-    Z = []
-    while cum < 360:
-        x = np.cos(cum*np.pi/180)
-        y = np.sin(cum*np.pi/180)
-        H.append((x, y))
-        Z.append((cen[0, 0]+rad*x, cen[0, 1] + rad*y))
-        cum += incr
+    if n_dim == 2:
+        H, Z = _make_circle(n_grad, cen, rad)
+        print H
+        # H, Z = _make_sphere(cen, rad, n_grad, n_dim)
+    else:
+        H, Z = _make_sphere(cen, rad, n_grad, n_dim)
 
-    C = np.atleast_2d(np.sum(np.array(Z)*np.array(H), axis=1))
+    C = np.atleast_2d(np.sum(Z * H , axis=1))
     Z = np.array(Z)
     L = len(H)
     A = len(stagepay)
@@ -404,29 +569,19 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
 
     # convert needed arrays to matrix objects (for linear programming routine)
     H = cvx.matrix(np.array(H))
-    G = cvx.matrix(np.vstack((H, -np.eye(2))))
+    G = cvx.matrix(np.vstack((H, -np.eye(n_dim))))
 
-    #-------------------------------------------------------------------------------
-    # Use subgradient same as search directions
-    #-------------------------------------------------------------------------------
-    [x, y, z] = _cylinder(rad, 200)
-
-    if plot is True:
-        # plot main circle and initial search points
-        plt.figure()
-        plt.plot(x[0, :] + cen[0, 0], y[0, :] + cen[0, 1])
-        plt.plot(Z[:, 0], Z[:, 1], 'rx')
 
     #---------------------------------------------------------------------------
-    # Begin optimization portion of program
+    # Begin optimization portion of function
     #---------------------------------------------------------------------------
     #---------------------------------------------------------------------------
     # iterative parameteres
     #---------------------------------------------------------------------------
-    wmin = np.ones((2, 1))*-10
+    wmin = np.ones((n_dim, 1))*-10
     iter = 0                            # Current number of iterations
     tolZ = 1                            # Initialized error between Z and Z'
-    Zold = np.zeros((len(Z), 2))        # Initialized Z array
+    Zold = np.zeros((len(Z), n_dim))        # Initialized Z array
 
     solvers.options['show_progress'] = False
 
@@ -436,15 +591,16 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
     if display is True:
         print('Outer Hyperplane Approximation')
 
-    while tolZ > tol and iter < MaxIter:
+    while tolZ > tol and iter < MaxIter*n_dim:
 
         # Construct iteration
         Cla = np.zeros((L, A))          # The set of equilibrium payoffs
-        Wla = np.zeros((A, 2, L))       # The set of equilibrium arguments
+        Wla = np.zeros((A, n_dim, L))       # The set of equilibrium arguments
 
         # loop through L search gradiants and A possible actions
         for l in range(L):
             for a in range(A):
+
                 #---------------------------------------------------------------
                 # Step 1.a:
                 # solve Cla = max_w h_l*[del1*payoff(a) + delta * w   sub. to
@@ -456,7 +612,7 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
 
                 if T['status'] == 'optimal':
                     Wla[a, :, l] = np.array(T['x'])[:, 0]
-                    Cla[l, a] = -np.inner(-H[l, :], T['x'].T)
+                    Cla[l, a] = -np.inner(-H[l, :], T['x'].T) ;pri
                 else:
                     Cla[l, a] = -np.inf
 
@@ -466,6 +622,7 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
         #       a_* = argmax{Cla}                 --- element of I
         #       z = del1*payoff(a_*) + del*Wla_*  --- element of C
         #----------------------------------------------------------------
+        
         I = np.atleast_2d(np.argmax(Cla, axis=1)).T
         C = np.atleast_2d(np.max(Cla, axis=1)).T
 
@@ -480,12 +637,6 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
         wmin = np.atleast_2d(np.min(Z, axis=0)).T
 
         #----------------------------------------------------------------
-        # Add points of Z to plot
-        #----------------------------------------------------------------
-        if plot is True:
-            plt.plot(Z[:, 0], Z[:, 1], 'o')
-
-        #----------------------------------------------------------------
         # Measure convergence
         #----------------------------------------------------------------
         if Housedorff is True:
@@ -494,7 +645,7 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
             tolZ = np.max(np.max(np.abs(Z-Zold)/(1.+abs(Zold)), axis=0))
 
 
-        if iter == MaxIter:
+        if iter == MaxIter*n_dim:
             print('No Convergence in allowed number of iterations \n')
             break
 
@@ -513,27 +664,23 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
     #-------------------------------------------------------------------------------
     # Find shape defined by supporting hyperplanes
     #-------------------------------------------------------------------------------
-    H_perp = np.hstack((-H[:, 1], H[:, 0]))*2
+    if n_dim ==2:
+        H_perp = np.hstack((-H[:, 1], H[:, 0]))*2
 
-    lines = []
-    for l in range(L):
-        lines.append((Z[l, :] + H_perp[l, :], Z[l, :] - H_perp[l, :]))
+        lines = []
+        for l in range(L):
+            lines.append((Z[l, :] + H_perp[l, :], Z[l, :] - H_perp[l, :]))
 
-    lines.append(lines[0])
-    vertices = []
-    for l in range(1, L+1):
-        a1, a2 = lines[l-1]
-        b1, b2 = lines[l]
-        vertices.append(_seg_intersect(a1, a2, b1, b2))
+        lines.append(lines[0])
+        vertices = []
+        for l in range(1, L+1):
+            a1, a2 = lines[l-1]
+            b1, b2 = lines[l]
+            vertices.append(_seg_intersect(a1, a2, b1, b2))
 
-    vertices = np.array(vertices)
+        vertices = np.array(vertices)
 
-    if plot is True:
-        Vplot = np.vstack((vertices, vertices[0, :]))
-        plt.plot(Vplot[:, 0], Vplot[:, 1], 'r-')
-        plt.xlabel('Payoff: Player 1')
-        plt.ylabel('Payoff: Player 2')
-
+        Zold = vertices
 
     #-------------------------------------------------------------------------------
     # Plot final results and display
@@ -545,14 +692,11 @@ def outerbound(p1, p2, cen, rad, n_grad=8, delta=0.8, plot=True, tol=1e-4, MaxIt
         elapsed_time = time.time() - start_time
         print('Elapsed time is %f seconds' % (elapsed_time))
 
-    #display plot
-    if plot is True:
-        plt.show()
 
-    return vertices
+    return Zold, H
 
 
-def innerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200, plot=True, display=True, Housedorff=False):
+def innerbound_par(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=200, plot=True, display=True, Housedorff=False):
     '''
     This method computes the innerbound approximation of Judd, Yeltekin, Cronklin (2003)
     for 2 agents.
@@ -585,97 +729,83 @@ def innerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
     #-------------------------------------------------------------------------------
     if rank == 0:
         start_time = time.time()
-
-    #-------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
     # check inputs for correctness
-    #-------------------------------------------------------------------------------
-    p1_x, p1_y = p1.shape
-    if p1_x != p1_y or p1.shape != p2.shape:
-        raise Exception("payoff matrices must be square and of the same size")
+    #---------------------------------------------------------------------------
+    Payoff_shape = P[0].shape
+    if sum([Payoff_shape==p.shape for p in P])!=len(P):
+        raise Exception("payoff matrices must all be of the same size")
 
-    if n_grad < 2:
+    elif sum(Payoff_shape[0] == p for p in Payoff_shape) !=len(Payoff_shape):
+        raise Exception("payoff matrices must all be square")
+
+    if n_grad < 4:
         raise Exception("insufficient number of search gradients")
 
-    #-------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
     # parameters
-    #-------------------------------------------------------------------------------
-    del1 = 1 - delta
-    x, y = p1.shape
-    p1max = np.reshape(np.tile(np.max(p1, 0), (max(x, y), 1)), (x*y, 1))
-    p2max = np.reshape(np.tile(np.max(p2, 1), (max(x, y), 1)).T, (1, x*y))
-    stagepay = np.hstack((np.reshape(p1, (1, -1)).T, np.reshape(p2, (1, -1)).T))
-    BR = np.hstack((np.atleast_2d(p1max), np.atleast_2d(p2max).T))
+    #---------------------------------------------------------------------------
+    del1 = 1-delta
+    n_dim = len(P)
 
-    #-------------------------------------------------------------------------------
+    Pmax = [tuple(np.max(p,i).flatten()) for i, p in enumerate(P)]
+    stagepay = np.vstack( (p.flatten() for p in P ) ).T
+    BR = np.vstack( (p for p in product(*Pmax)) )[:,range(len(P)-1,-1,-1)]
+
+
+    #---------------------------------------------------------------------------
     # gradients and tangency points
-    #-------------------------------------------------------------------------------
-    incr = 360.0/n_grad
-    cum = 0
-    H = []
-    Z = []
-    while cum < 360:
-        x = np.cos(cum * np.pi/180)
-        y = np.sin(cum * np.pi/180)
-        H.append((x, y))
-        Z.append((cen[0, 0]+rad*x, cen[0, 1]+rad*y))
-        cum = cum + incr
+    #---------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
+    # gradients and tangency points
+    #---------------------------------------------------------------------------
+    if n_dim == 2:
+        H, Z = _make_circle(n_grad, cen, rad)
+        print H
+        # H, Z = _make_sphere(cen, rad, n_grad, n_dim)
+    else:
+        H, Z = _make_sphere(cen, rad, n_grad, n_dim)
 
-    C = np.atleast_2d(np.sum(np.array(Z)*np.array(H), axis=1))
+    C = np.atleast_2d(np.sum(Z * H , axis=1))
     Z = np.array(Z)
     L = len(H)
     A = len(stagepay)
     C = C.T
 
-    #-------------------------------------------------------------------------------
-    # convert necessary arrays to matrix objects (for CVXOPT lp routine)
-    #-------------------------------------------------------------------------------
+
+
+    # convert needed arrays to matrix objects (for linear programming routine)
     H = cvx.matrix(np.array(H))
-    G = H
+    G = cvx.matrix(np.vstack((H, -np.eye(n_dim))))
 
-    #-------------------------------------------------------------------------------
-    # Use subgradient same as search directions
-    #-------------------------------------------------------------------------------
-    [x, y, z] = _cylinder(rad, 200)
 
-    # plot main circle and initial search points
-    if rank == 0 and plot is True:
-        plt.figure()
-        plt.plot(x[0, :] + cen[0, 0], y[0, :] + cen[0, 1])
-        plt.plot(Z[:, 0], Z[:, 1], 'rx')
-
-    #-------------------------------------------------------------------------------
-    # Begin optimization portion of program
-    #-------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
+    # Begin optimization portion of function
+    #---------------------------------------------------------------------------
     #-------------------------------------------------------------------------------
     # iterative parameteres
     #-------------------------------------------------------------------------------
-    wmin = np.ones((2, 1))*-10
-    iter = 0
-    tolZ = 1
-    Zold = np.zeros((len(Z), 2))
-    slices = _loadbalance(n_grad, size)
-    cumslices = np.cumsum(np.array(slices))
-    slice = slices[rank+1]
+    wmin = np.ones((n_dim, 1))*-10
+    iter = 0                            # Current number of iterations
+    tolZ = 1                            # Initialized error between Z and Z'
+    Zold = np.zeros((len(Z), n_dim))        # Initialized Z array
 
     solvers.options['show_progress'] = False
-
-    if rank == 0 and display is True:
-        print('Inner Hyperplane Approximation')
 
     #-------------------------------------------------------------------------------
     # Begin algorithm for inner hyperplane approximation
     #-------------------------------------------------------------------------------
-    # if rank <= n:
+    if rank == 0 and display is True:
+        print('Inner Hyperplane Approximation')
+
     while tolZ > tol and iter < MaxIter:
 
         # Construct iteration
-        WlaCla_Buffer = np.zeros((A, 3, L))
-        WlaCla_entry = np.zeros((A, 3, L))
+        WlaCla_Buffer = np.zeros((A, n_dim+1, L))
+        WlaCla_entry = np.zeros((A, n_dim+1, L))
 
         # loop through L search gradients
-        for k in range(slice):
-            l = int(cumslices[rank]) + k
-
+        for l in range(rank, L, size):
             # loop A possible actions
             for a in range(A):
                 #----------------------------------------------------------------
@@ -683,22 +813,23 @@ def innerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
                 # solve Cla = max_w h_l*[del1*payoff(a) + delta * w   sub. to
                 #       del1*payoff(a) + delta*w \geq del1* BR(a) + delta * wmin
                 #----------------------------------------------------------------
+
                 pay = np.atleast_2d(stagepay[a, :])
-                b = cvx.matrix(np.vstack((delta*C+del1 * np.dot(G, pay.T), -del1 * np.atleast_2d(BR[a, :]).T - delta * wmin)))
-                T = solvers.lp(-H[l, :].T, cvx.matrix(np.vstack((G, -np.eye(2)))), b)
+                b = cvx.matrix(np.vstack((delta*C+del1 * np.dot(H, pay.T), -del1 * np.atleast_2d(BR[a, :]).T - delta * wmin)))
+                T = solvers.lp(-H[l, :].T, G, b)
 
                 if T['status'] == 'optimal':
-                    WlaCla_entry[a, 0:2, l] = np.array(T['x'])[:, 0]            # Wla
-                    WlaCla_entry[a, 2, l] = -np.inner(-H[l, :], T['x'].T)       # Cla
+                    WlaCla_entry[a, 0:n_dim, l] = np.array(T['x'])[:, 0]
+                    WlaCla_entry[a, n_dim, l] = -np.inner(-H[l, :], T['x'].T)
                 else:
-                    WlaCla_entry[a, 2, l] = -np.inf
+                    WlaCla_entry[a, n_dim,l] = -np.inf
 
         #----------------------------------------------------------------
         # gather all the pieces
         #----------------------------------------------------------------
         comm.Allreduce(WlaCla_entry, WlaCla_Buffer, op=MPI.SUM)
-        Wla = WlaCla_Buffer[:, 0:2, :]
-        Cla = WlaCla_Buffer[:, 2, :].T
+        Wla = WlaCla_Buffer[:, 0:n_dim, :]
+        Cla = WlaCla_Buffer[:, n_dim, :].T
 
         #----------------------------------------------------------------
         # Step 1.b:
@@ -707,7 +838,7 @@ def innerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
         #       z = del1*payoff(a_*) + del*Wla_*  --- element of C
         #----------------------------------------------------------------
         I = np.atleast_2d(np.argmax(Cla, axis=1)).T
-        C = np.atleast_2d(np.max(Cla, axis=1)).T
+        C = np.atleast_2d(np.max(Cla, axis=0)).T; print C
 
         #----------------------------------------------------------------
         # Set 2:
@@ -777,7 +908,7 @@ def innerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
         return Z
 
 
-def outerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200, plot=True, display=True, Housedorff=False):
+def outerbound_par(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=200, plot=True, display=True, Housedorff=False):
     '''
     This method computes the outerbound approximation of Judd, Yeltekin, Cronklin (2003)
     for 2 agents.
@@ -811,66 +942,58 @@ def outerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
     if rank == 0:
         start_time = time.time()
 
-    #-------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
     # check inputs for correctness
-    #-------------------------------------------------------------------------------
-    p1_x, p1_y = p1.shape
-    if p1_x != p1_y or p1.shape != p2.shape:
-        raise Exception("payoff matrices must be square and of the same size")
+    #---------------------------------------------------------------------------
+    Payoff_shape = P[0].shape
+    if sum([Payoff_shape==p.shape for p in P])!=len(P):
+        raise Exception("payoff matrices must all be of the same size")
+
+    elif sum(Payoff_shape[0] == p for p in Payoff_shape) !=len(Payoff_shape):
+        raise Exception("payoff matrices must all be square")
 
     if n_grad < 2:
         raise Exception("insufficient number of search gradients")
 
-    #-------------------------------------------------------------------------------
+   #---------------------------------------------------------------------------
     # parameters
-    #-------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
     del1 = 1-delta
-    x, y = p1.shape
-    p1max = np.reshape(np.tile(np.max(p1, 0), (max(x, y), 1)), (x*y, 1))
-    p2max = np.reshape(np.tile(np.max(p2, 1), (max(x, y), 1)).T, (1, x*y))
-    stagepay = np.hstack((np.reshape(p1, (1, -1)).T, np.reshape(p2, (1, -1)).T))
-    BR = np.hstack((np.atleast_2d(p1max), np.atleast_2d(p2max).T))
+    n_dim = len(P)
 
-    #-------------------------------------------------------------------------------
+    Pmax = [tuple(np.max(p,i).flatten()) for i, p in enumerate(P)]
+    stagepay = np.vstack( (p.flatten() for p in P ) ).T
+    BR = np.vstack( (p for p in product(*Pmax)) )[:,range(len(P)-1,-1,-1)]
+
+
+    #---------------------------------------------------------------------------
     # gradients and tangency points
-    #-------------------------------------------------------------------------------
-    incr = 360.0/n_grad
-    cum = 0
-    H = []
-    Z = []
-    while cum < 360:
-        x = np.cos(cum * np.pi/180)
-        y = np.sin(cum * np.pi/180)
-        H.append((x, y))
-        Z.append((cen[0, 0]+rad*x, cen[0, 1]+rad*y))
-        cum = cum + incr
+    #---------------------------------------------------------------------------
+    if n_dim == 2:
+        H, Z = _make_circle(n_grad, cen, rad)
+        print H
+        # H, Z = _make_sphere(cen, rad, n_grad, n_dim)
+    else:
+        H, Z = _make_sphere(cen, rad, n_grad, n_dim)
 
-    C = np.atleast_2d(np.sum(np.array(Z)*np.array(H), axis=1))
+    C = np.atleast_2d(np.sum(Z * H , axis=1))
     Z = np.array(Z)
     L = len(H)
     A = len(stagepay)
     C = C.T
 
-    #-------------------------------------------------------------------------------
-    # convert necessary arrays to matrix objects (for CVXOPT lp routine)
-    #-------------------------------------------------------------------------------
+    C = np.atleast_2d(np.sum(Z * H , axis=1))
+    L = len(H)
+    A = len(stagepay)
+    C = C.T
+
+    # convert needed arrays to matrix objects (for linear programming routine)
     H = cvx.matrix(np.array(H))
-    G = cvx.matrix(np.vstack((H, -np.eye(2))))
+    G = cvx.matrix(np.vstack((H, -np.eye(n_dim))))
 
-    #-------------------------------------------------------------------------------
-    # Use subgradient same as search directions
-    #-------------------------------------------------------------------------------
-    [x, y, z] = _cylinder(rad, 200)
-
-    # plot main circle and initial search points
-    if rank == 0 and plot is True:
-        plt.figure()
-        plt.plot(x[0, :] + cen[0, 0], y[0, :] + cen[0, 1])
-        plt.plot(Z[:, 0], Z[:, 1], 'rx')
-
-    #-------------------------------------------------------------------------------
-    # Begin optimization portion of program
-    #-------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
+    # Begin optimization portion of function
+    #---------------------------------------------------------------------------
     #-------------------------------------------------------------------------------
     # iterative parameteres
     #-------------------------------------------------------------------------------
@@ -878,19 +1001,16 @@ def outerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
     iter = 0
     tolZ = 1
     Zold = np.zeros((len(Z), 2))
-    slices = _loadbalance(n_grad, size)
-    cumslices = np.cumsum(np.array(slices))
-    slice = slices[rank+1]
-
+ 
     solvers.options['show_progress'] = False
-
-    if rank == 0 and display is True:
-        print('Outer Hyperplane Approximation')
 
     #-------------------------------------------------------------------------------
     # Begin algorithm for outer hyperplane approximation
     #-------------------------------------------------------------------------------
-    # if rank <= n:
+    if rank == 0 and display is True:
+        print('Outer Hyperplane Approximation')
+
+
     while tolZ > tol and iter < MaxIter:
 
         # Construct iteration
@@ -898,9 +1018,8 @@ def outerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
         WlaCla_entry = np.zeros((A, 3, L))
 
         # loop through L search gradients
-        for k in range(slice):
-            l = int(cumslices[rank]) + k
-
+        for l in range(rank, L, size):
+         
             # loop A possible actions
             for a in range(A):
                 #----------------------------------------------------------------
@@ -909,21 +1028,21 @@ def outerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
                 #       del1*payoff(a) + delta*w \geq del1* BR(a) + delta * wmin
                 #----------------------------------------------------------------
                 pay = np.atleast_2d(stagepay[a, :])
-                b = cvx.matrix(np.vstack((delta*C+del1*np.dot(H, pay.T), -del1*np.atleast_2d(BR[a, :]).T-delta*wmin)))
+                b = cvx.matrix(np.vstack((delta*C + del1*np.dot(H, pay.T), -del1*np.atleast_2d(BR[a, :]).T-delta*wmin)))
                 T = solvers.lp(-H[l, :].T, G, b)
 
                 if T['status'] == 'optimal':
-                    WlaCla_entry[a, 0:2, l] = np.array(T['x'])[:, 0]            # Wla
-                    WlaCla_entry[a, 2, l] = -np.inner(-H[l, :], T['x'].T)       # Cla
+                    WlaCla_entry[a, :, l] = np.array(T['x'])[:, 0]
+                    WlaCla_entry[l, a] = -np.inner(-H[l, :], T['x'].T)
                 else:
-                    WlaCla_entry[a, 2, l] = -np.inf
+                    WlaCla_entry[l, a] = -np.inf
 
         #----------------------------------------------------------------
         # gather all the pieces
         #----------------------------------------------------------------
         comm.Allreduce(WlaCla_entry, WlaCla_Buffer, op=MPI.SUM)
-        Wla = WlaCla_Buffer[:, 0:2, :]
-        Cla = WlaCla_Buffer[:, 2, :].T
+        Wla = WlaCla_Buffer[:, 0:n_dim-2, :]
+        Cla = WlaCla_Buffer[:, n_dim-1, :].T
 
         #----------------------------------------------------------------
         # Step 1.b:
@@ -975,10 +1094,11 @@ def outerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
         Zold = Z.copy()
         iter += 1
 
-    if rank == 0:
-        #-------------------------------------------------------------------------------
-        # Find covex hull of most recent Z array and plot
-        #-------------------------------------------------------------------------------
+
+    #-------------------------------------------------------------------------------
+    # Find shape defined by supporting hyperplanes
+    #-------------------------------------------------------------------------------
+    if n_dim ==2:
         H_perp = np.hstack((-H[:, 1], H[:, 0]))*2
 
         lines = []
@@ -994,16 +1114,12 @@ def outerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
 
         vertices = np.array(vertices)
 
-        if plot is True:
-            Vplot = np.vstack((vertices, vertices[0, :]))
-            plt.plot(Vplot[:, 0], Vplot[:, 1], 'r-')
-            plt.xlabel('Payoff: Player 1')
-            plt.ylabel('Payoff: Player 2')
+        Zold = vertices
 
-
-        #-------------------------------------------------------------------------------
-        # Plot final results and display
-        #-------------------------------------------------------------------------------
+    if rank == 0:
+    #-------------------------------------------------------------------------------
+    # Plot final results and display
+    #-------------------------------------------------------------------------------
         if iter < MaxIter and display is True:
             print('Convergence after %d iterations' % (iter))
 
@@ -1011,17 +1127,17 @@ def outerbound_par(p1, p2, cen, rad, n_grad=8, delta=0.8, tol=1e-4, MaxIter=200,
             elapsed_time = time.time() - start_time
             print('Elapsed time is %f seconds' % (elapsed_time))
 
-        #display plot
-        if plot is True:
-            plt.show()
 
-        return vertices
+        return Zold, H
 
 
 if __name__ == '__main__':
-    p1 = np.array([[4, 0], [6, 2]])
-    p2 = p1.T
-    cen = np.array([3, 3], ndmin=2)
-    rad = .5
-    Z_inner = innerbound(p1, p2, cen, rad)
-    Z_outer = outerbound(p1, p2, cen, rad*10)
+    p1 = np.array([[[1.46, 2.2 ], [1.5, 1.85]],  [[1.39, 2.1 ], [0.90, 1.54]]])
+    p2 = np.array([[[1.46, 1.5 ], [2.2, 1.85]],  [[1.39, .90 ], [2.1, 1.54]]])
+    p3 = np.array([[[1, 1],  [1, 2]],  [[2,  2], [2, 3]]])
+
+    cen = np.array([3, 3, 3], ndmin=2)
+    rad = 15
+    Z_inner, H = innerbound_par([p1, p2, p3], cen, rad)
+    # Z_outer, H = outerbound([p1, p2, p3], cen, rad*10)
+    make_3d_plots(Z_inner, save=False)    
