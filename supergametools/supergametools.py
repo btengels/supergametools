@@ -149,7 +149,7 @@ def _make_sphere(cen, rad, n_points, n_dim ):
     '''
 
     # randomly sample points and normalize
-    H = np.random.randn( n_points/2, n_dim )
+    H = np.random.randn(int(n_points/2), n_dim)
     H /=  np.tile(norm(H, axis=1), (n_dim,1)).T
 
     # put all points on half of sphere
@@ -381,7 +381,6 @@ def innerbound(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=200, display
     #---------------------------------------------------------------------------
     if n_dim == 2:
         H, Z = _make_circle(n_grad, cen, rad)
-        print H
         # H, Z = _make_sphere(cen, rad, n_grad, n_dim)
     else:
         H, Z = _make_sphere(cen, rad, n_grad, n_dim)
@@ -454,7 +453,7 @@ def innerbound(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=200, display
         #----------------------------------------------------------------
         
         I = np.atleast_2d(np.argmax(Cla, axis=1)).T
-        C = np.atleast_2d(np.max(Cla, axis=1)).T; print C
+        C = np.atleast_2d(np.max(Cla, axis=1)).T
 
         #----------------------------------------------------------------
         # Step 2:
@@ -556,7 +555,7 @@ def outerbound(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=100, display
     #---------------------------------------------------------------------------
     if n_dim == 2:
         H, Z = _make_circle(n_grad, cen, rad)
-        print H
+        print(H)
         # H, Z = _make_sphere(cen, rad, n_grad, n_dim)
     else:
         H, Z = _make_sphere(cen, rad, n_grad, n_dim)
@@ -612,7 +611,7 @@ def outerbound(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=100, display
 
                 if T['status'] == 'optimal':
                     Wla[a, :, l] = np.array(T['x'])[:, 0]
-                    Cla[l, a] = -np.inner(-H[l, :], T['x'].T) ;pri
+                    Cla[l, a] = -np.inner(-H[l, :], T['x'].T)
                 else:
                     Cla[l, a] = -np.inf
 
@@ -761,7 +760,7 @@ def innerbound_par(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=200, plo
     #---------------------------------------------------------------------------
     if n_dim == 2:
         H, Z = _make_circle(n_grad, cen, rad)
-        print H
+        print(H)
         # H, Z = _make_sphere(cen, rad, n_grad, n_dim)
     else:
         H, Z = _make_sphere(cen, rad, n_grad, n_dim)
@@ -838,7 +837,7 @@ def innerbound_par(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=200, plo
         #       z = del1*payoff(a_*) + del*Wla_*  --- element of C
         #----------------------------------------------------------------
         I = np.atleast_2d(np.argmax(Cla, axis=1)).T
-        C = np.atleast_2d(np.max(Cla, axis=0)).T; print C
+        C = np.atleast_2d(np.max(Cla, axis=0)).T; print(C)
 
         #----------------------------------------------------------------
         # Set 2:
@@ -971,7 +970,7 @@ def outerbound_par(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=200, plo
     #---------------------------------------------------------------------------
     if n_dim == 2:
         H, Z = _make_circle(n_grad, cen, rad)
-        print H
+        print(H)
         # H, Z = _make_sphere(cen, rad, n_grad, n_dim)
     else:
         H, Z = _make_sphere(cen, rad, n_grad, n_dim)
@@ -1138,6 +1137,7 @@ if __name__ == '__main__':
 
     cen = np.array([3, 3, 3], ndmin=2)
     rad = 15
-    Z_inner, H = innerbound_par([p1, p2, p3], cen, rad)
-    # Z_outer, H = outerbound([p1, p2, p3], cen, rad*10)
+    Z_inner, H = innerbound([p1, p2, p3], cen, rad)
+    Z_outer, H = outerbound([p1, p2, p3], cen, rad*10)
     make_3d_plots(Z_inner, save=False)    
+ots(Z_inner, save=False)    
