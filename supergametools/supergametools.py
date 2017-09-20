@@ -1126,7 +1126,6 @@ def outerbound_par(P, cen, rad, n_grad=24, delta=0.8, tol=1e-4, MaxIter=200, plo
             elapsed_time = time.time() - start_time
             print('Elapsed time is %f seconds' % (elapsed_time))
 
-
         return Zold, H
 
 
