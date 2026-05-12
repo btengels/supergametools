@@ -1,8 +1,6 @@
 
 # Supergametools - a python toolkit for repeated economic games
-- Author: Benjamin Tengelsen <b.tengelsen@gmail.com>
-- Website: https://sites.google.com/site/btengelsenresearch
-
+- Author: Benjamin Tengelsen
 
 ## Introduction
 
