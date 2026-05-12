@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #----------------------------------------------------------------------------
 # This python script uses the supergametools library to find the set of
 # supergame equilibria in a simple 2-person prisoners dilemma.
@@ -19,7 +19,7 @@ rank = comm.Get_rank()
 p1 = np.array([[4, 0], [6, 2]])
 p2 = p1.T
 
-# center and radious of initial guess
+# center and radius of initial guess
 cen = np.array([3, 3], ndmin=2)
 rad = 5
 
@@ -28,5 +28,5 @@ outer_hull = sgt.outerbound_par(p1, p2, cen, rad)
 
 # display results
 if rank == 0:
-    print outer_hull
+    print(outer_hull)
 

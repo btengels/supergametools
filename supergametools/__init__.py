@@ -1,6 +1,5 @@
 """
-supergametools docstrings
+supergametools - Python library for finding equilibria of repeated games
 """
 
-# from supergame import supergame
-from supergametools import *
+from supergametools.supergametools import *

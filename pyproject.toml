@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "supergametools"
+version = "0.2.0"
+description = "Python library for finding equilibria of repeated games"
+readme = "README.md"
+authors = [
+    { name = "Benjamin Tengelsen", email = "b.tengelsen@gmail.com" }
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+
+    "matplotlib",
+    "cvxopt",
+]
+
+[project.optional-dependencies]
+parallel = ["mpi4py"]
+
+[project.urls]
+Homepage = "https://github.com/btengels/supergametools"

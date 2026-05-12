@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #----------------------------------------------------------------------------
 # This python script uses the supergametools library to find the set of
 # supergame equilibria in a simple 2-firm cournot game.
@@ -17,7 +17,7 @@ def payoff(cost, A):
     This function calculates the payoffs in a cournot duopoly over action space A and
     a unique marginal cost for each player. See supergametheory.pdf for example details.
     '''
-    coordinates = product(xrange(len(A)), xrange(len(A)))
+    coordinates = product(range(len(A)), range(len(A)))
     c1, c2 = cost[0], cost[1]
 
     p1 = np.zeros((len(A), len(A)))
@@ -53,4 +53,4 @@ outer_hull = sgt.outerbound(p1, p2, cen, rad)
 
 # find inner approximation for set of supergame equilibria
 rad = .5
-outer_hull = sgt.outerbound(p1, p2, cen, rad)
+inner_hull = sgt.innerbound(p1, p2, cen, rad)

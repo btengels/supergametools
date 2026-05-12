@@ -2,7 +2,6 @@
 # Supergametools - a python toolkit for repeated economic games
 - Author: Benjamin Tengelsen <b.tengelsen@gmail.com>
 - Website: https://sites.google.com/site/btengelsenresearch
-- Last revision: May 6, 2013
 
 
 ## Introduction
@@ -28,54 +27,48 @@ Supergametools calls the following python libraries:
   - scipy -- <http://www.scipy.org>
   - matplotlib -- <http://matplotlib.org>
   - cvxopt -- <http://cvxopt.org>
-  - mpi4py -- <http://mpi4py.scipy.org>
+  - mpi4py -- <http://mpi4py.scipy.org> (required only for parallel functions)
 
-The software is only tested for Python 2.7.
+Requires Python 3.8 or later.
 
 
 ## Installation
-After downloading the source files (zipped folder from website), unzip
-the files and change your directory to the source files. Then run (you
-may need to become a root):
 
-	python setup.py install
+Install directly from the source directory:
 
-To see if the library installed correctly, open python (or ipython)
-and type
+	pip install .
+
+To install with parallel support (mpi4py):
+
+	pip install ".[parallel]"
+
+To verify the installation, open python and type:
 
 	import supergametools
 
 If the library imports without any errors, the software is properly
 installed. Assuming all dependencies are installed, you should be able
-to run any of the test scripts accompanying the source code.
+to run any of the example scripts in the `docs/` directory.
 
 
 ## To Use
 Each function in the supergametools library has both a serial and
 a parallel version. The parallel functions have the same names as
-their parallel counterparts, but with the term "_par" on the end.
+their serial counterparts, but with the term `_par` appended.
 
 The serial functions can be used interactively in python (or ipython)
 with no special instruction. This is a good way to initially code a
 program and/or check for correctness. Specific information for each
 function is given in its docstring.
 
-The parallel functions have not been tested for interactive use. If
-your script calls the parallelized functions, you can run your script
-using the following command-line syntax (from the files directory):
+The parallel functions require mpi4py and are run via:
 
 	mpiexec -n [# of processes] python yourfile.py
-
-Note that each process will run the entire script, but will work
-together to evaluate the supergametools functions. The following site
-may be helpful for those who wish attempt to use the parallelized
-supergametools functions in an interactive setting:
-http://ipython.org/ipython-doc/dev/parallel/
 
 
 ## Items for future releases
 - 3+ player games
-- improved timing of parallelized functions
+- Improved timing of parallelized functions
 
 
 ## Acknowledgements

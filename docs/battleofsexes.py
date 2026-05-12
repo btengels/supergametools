@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #----------------------------------------------------------------------------
 # This python script uses the supergametools library to find the set of
 # supergame equilibria in a simple 2-person battle of the sexes game.
@@ -14,14 +14,13 @@ import supergametools as sgt
 p1 = np.array([[3, 1], [0, 2]])
 p2 = np.array([[2, 1], [0, 3]])
 
-# center and radious of initial guess
+# center and radius of initial guess
 cen = np.array([2.5, 2.5], ndmin=2)
 rad = 3
 
 # find outer hull of set of supergame equilibria
 outer_approx = sgt.outerbound(p1, p2, cen, rad)
 
-print "hello"
 inner_approx = sgt.innerbound(p1, p2, cen, rad/10.0)
 
 # display results
